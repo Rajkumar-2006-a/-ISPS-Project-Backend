@@ -7,14 +7,51 @@ const applicationRoutes = require('./routes/applications');
 const messageRoutes = require('./routes/messages');
 
 const app = express();
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+const corsOptions = {
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.get('/', (req, res) => {
     res.status(200).json({
         status: 'ok',
-        message: 'ISPS Backend API is running'
+        message: 'ISPS Backend API is running',
+        apiBase: '/api'
     });
+});
+
+app.get('/api', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        message: 'ISPS API is ready'
+    });
+});
+
+app.use('/api', async (req, res, next) => {
+    try {
+        await setupDatabase();
+        return next();
+    } catch (err) {
+        console.error('Database setup failed during request:', err);
+        return res.status(500).json({
+            error: 'Database connection failed'
+        });
+    }
 });
 
 app.use('/api/auth', authRoutes);
@@ -22,22 +59,32 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);
 
-// Catch-all route to redirect any unhandled requests to the base API endpoint
-app.get('*', (req, res) => {
-    res.redirect('/');
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'API route not found' });
+});
+
+app.use((err, req, res, next) => {
+    if (err.message === 'Not allowed by CORS') {
+        return res.status(403).json({ error: err.message });
+    }
+
+    return next(err);
+});
+
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'Route not found',
+        apiBase: '/api'
+    });
 });
 
 const PORT = process.env.PORT || 5000;
 
-setupDatabase().then(() => {
-    // Only listen if not running on Vercel
-    if (!process.env.VERCEL) {
-        app.listen(PORT, () => {
-            console.log(`ISPS Backend server running on http://localhost:${PORT}`);
-        });
-    }
-}).catch(err => {
-    console.error("Failed to start server:", err);
-});
+// Only listen if not running on Vercel
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`ISPS Backend server running on http://localhost:${PORT}`);
+    });
+}
 
 module.exports = app;
