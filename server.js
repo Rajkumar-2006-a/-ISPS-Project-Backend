@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+require('dotenv').config();
+
 const setupDatabase = require('./database');
 const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/projects');
@@ -7,24 +9,39 @@ const applicationRoutes = require('./routes/applications');
 const messageRoutes = require('./routes/messages');
 
 const app = express();
-const allowedOrigins = (process.env.CORS_ORIGIN || '')
-    .split(',')
+
+const envOrigins = [
+    process.env.CORS_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_ORIGIN
+].flatMap(value => (value || '').split(','));
+
+const defaultOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://is-ps-project-frontend.vercel.app'
+];
+
+const allowedOrigins = [...new Set([...envOrigins, ...defaultOrigins]
     .map(origin => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean))];
 
 const corsOptions = {
     origin(origin, callback) {
-        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
 
+        console.warn(`Blocked CORS origin: ${origin}`);
         return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 app.get('/', (req, res) => {
