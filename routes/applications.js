@@ -92,9 +92,13 @@ router.put('/:id/status-update', authenticate, authorizeRole(['student']), async
 // Select a student for project (Industry finalizes)
 router.put('/:id/select', authenticate, authorizeRole(['industry', 'admin']), async (req, res) => {
     try {
-        const app = await Application.findById(req.params.id);
+        const app = await Application.findById(req.params.id).populate('project_id');
         if (!app || app.status !== 'faculty_approved') {
             return res.status(400).json({ error: 'Student must be approved by faculty first' });
+        }
+
+        if (req.user.role === 'industry' && app.project_id.industry_mentor_id.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'You do not have permission to manage this project' });
         }
 
         app.status = 'selected';
@@ -156,7 +160,21 @@ router.get('/:id/progress', authenticate, async (req, res) => {
 router.post('/:id/evaluate', authenticate, authorizeRole(['industry', 'faculty']), async (req, res) => {
     const { marks, feedback } = req.body;
     try {
-        await Application.findByIdAndUpdate(req.params.id, { marks, feedback });
+        const app = await Application.findById(req.params.id).populate('project_id');
+        if (!app) return res.status(404).json({ error: 'Application not found' });
+        
+        const project = app.project_id;
+        if (req.user.role === 'industry' && project.industry_mentor_id.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'You do not have permission to evaluate this project' });
+        }
+        if (req.user.role === 'faculty' && project.faculty_id && project.faculty_id.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'You do not have permission to evaluate this project' });
+        }
+
+        app.marks = marks;
+        app.feedback = feedback;
+        await app.save();
+
         res.json({ message: 'Evaluation submitted successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Evaluation failed' });

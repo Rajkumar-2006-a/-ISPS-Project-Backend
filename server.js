@@ -17,18 +17,27 @@ app.get('/', (req, res) => {
     });
 });
 
-app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);
 
+// Catch-all route to redirect any unhandled requests to the base API endpoint
+app.get('*', (req, res) => {
+    res.redirect('/');
+});
+
 const PORT = process.env.PORT || 5000;
 
 setupDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`ISPS Backend server running on http://localhost:${PORT}`);
-    });
+    // Only listen if not running on Vercel
+    if (!process.env.VERCEL) {
+        app.listen(PORT, () => {
+            console.log(`ISPS Backend server running on http://localhost:${PORT}`);
+        });
+    }
 }).catch(err => {
     console.error("Failed to start server:", err);
 });
+
+module.exports = app;

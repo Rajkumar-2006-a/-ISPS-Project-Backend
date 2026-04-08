@@ -69,7 +69,15 @@ router.put('/:id/approve', authenticate, authorizeRole(['faculty', 'admin']), as
 router.put('/:id/status', authenticate, async (req, res) => {
     const { status } = req.body;
     try {
-        await Project.findByIdAndUpdate(req.params.id, { status });
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+        
+        if (req.user.role !== 'admin' && req.user.role !== 'faculty' && project.industry_mentor_id.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'You do not have permission to update this project status' });
+        }
+
+        project.status = status;
+        await project.save();
         res.json({ message: 'Project status updated' });
     } catch (err) {
         res.status(500).json({ error: 'Failed to update project status' });
