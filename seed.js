@@ -1,17 +1,21 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const Project = require('./models/Project');
 const Application = require('./models/Application');
+const Message = require('./models/Message');
+const ProgressLog = require('./models/ProgressLog');
 
 async function seed() {
     try {
-        await mongoose.connect('mongodb://localhost:27017/ISPS_NewProject');
-        console.log("Connected to MongoDB (ISPS_NewProject) for seeding...");
+        const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ISPS_NewProject';
+        await mongoose.connect(mongoURI);
+        console.log("Connected to MongoDB for seeding...");
 
         // Drop the entire database to clear stale indexes and data
         await mongoose.connection.db.dropDatabase();
-        console.log("Database 'isps' dropped for a clean start.");
+        console.log("Database dropped for a clean start.");
 
         const hashed = await bcrypt.hash('password123', 10);
 
@@ -44,7 +48,7 @@ async function seed() {
         console.log("Created sample projects.");
 
         // 3. Create Application
-        await Application.create({
+        const application = await Application.create({
             student_id: student._id,
             project_id: p1._id,
             status: 'selected',
@@ -52,6 +56,32 @@ async function seed() {
             project_url: 'https://github.com/example/ai-dashboard'
         });
         console.log("Created sample application.");
+
+        // 4. Create Messages
+        await Message.create({
+            sender_id: student._id,
+            receiver_id: faculty._id,
+            project_id: p1._id,
+            content: 'Hello, I have submitted the project draft for review.'
+        });
+        await Message.create({
+            sender_id: faculty._id,
+            receiver_id: student._id,
+            project_id: p1._id,
+            content: 'Great work. Please update the progress report and share the link.'
+        });
+        console.log("Created sample messages.");
+
+        // 5. Create Progress Logs
+        await ProgressLog.create({
+            application_id: application._id,
+            update_text: 'Initial project proposal approved by faculty.'
+        });
+        await ProgressLog.create({
+            application_id: application._id,
+            update_text: 'Student has completed 50% of the milestone tasks.'
+        });
+        console.log("Created sample progress logs.");
 
         console.log("Seeding complete! You can now login with password123 for all accounts.");
         process.exit();

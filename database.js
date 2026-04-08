@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('./models/User');
 const bcrypt = require('bcryptjs');
@@ -9,6 +10,9 @@ async function setupDatabase() {
 
     try {
         const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ISPS_NewProject';
+        if (!process.env.MONGODB_URI) {
+            console.warn('MONGODB_URI is not set. Falling back to local MongoDB.');
+        }
         await mongoose.connect(mongoURI);
         isConnected = true;
         console.log("Connected to MongoDB successfully via Mongoose.");
@@ -31,6 +35,9 @@ async function setupDatabase() {
         return mongoose.connection;
     } catch (err) {
         console.error("MongoDB connection failed:", err.message);
+        if (err.code === 'ECONNREFUSED' && err.syscall === 'querySrv') {
+            console.error('SRV DNS lookup failed. If Atlas SRV URIs do not resolve on this machine, use the standard mongodb:// host list from Atlas instead of mongodb+srv://.');
+        }
         throw err;
     }
 }
